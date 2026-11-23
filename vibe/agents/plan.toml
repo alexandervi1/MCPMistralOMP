@@ -1,0 +1,11 @@
+agent_type = "agent"
+display_name = "Plan"
+description = "Explora el repo y propone un plan antes de tocar nada."
+active_model = "mistral-large-4-0"
+disabled_tools = ["edit", "write_file"]
+instructions = """
+Explora el código y propone un plan paso a paso. No modifiques archivos hasta que el usuario lo apruebe.
+"""
+
+[tools.bash]
+permission = "ask"

@@ -1,0 +1,359 @@
+theme = "ansi-dark"
+active_model = "deepseek-v4-1-flash-1017"
+default_agent = "accept-edits"
+outside_workdir = "ask"
+enable_subagents = true
+max_subagents = 8
+max_concurrent_subagents = 4
+enable_background_processes = true
+auto_worktree = false
+worktree_limit = 10
+include_project_context = true
+output_limit_retries = 2
+enable_pr_monitoring = false
+enable_telemetry = false
+show_thinking_nodes = true
+collapse_turn_details = true
+vim_keybindings = false
+
+[project_context]
+default_commit_count = 5
+timeout_seconds = 2.0
+
+[session_logging]
+enabled = true
+generate_titles = true
+
+[[models]]
+name = "deepseek-v4-1-flash-1017"
+provider = "mistral"
+alias = "deepseek-v4-1-flash-1017"
+display_name = "DeepSeek V4.1 Flash"
+thinking = "high"
+thinking_levels = ["none", "low", "high", "xhigh", "max"]
+max_context_length = 1048576
+auto_compact_threshold = 600000
+
+[[models]]
+name = "mistral-medium-3.5"
+provider = "mistral"
+alias = "small"
+display_name = "Mistral Medium 3.5"
+thinking_levels = ["none", "high"]
+
+[compaction_model]
+name = "mistral-large-4-0"
+provider = "mistral"
+alias = "mistral-large-4-0"
+
+[utility_models]
+smart_approve = "active"
+title = "small"
+
+[tools.bash]
+permission = "always"
+denylist = [
+    "rm -rf",
+    "rm -fr",
+    "git reset --hard",
+    "git clean -fd",
+    "git push --force",
+    "git push -f",
+    "npm publish",
+    "pnpm publish",
+    "yarn publish",
+]
+denylist_standalone = [
+    "rm",
+    "rmdir",
+    "del",
+]
+sensitive_patterns = [
+    "sudo",
+    "rm",
+    "mv",
+    "chmod",
+    "chown",
+    "reg",
+    "sc",
+    "netsh",
+    "takeown",
+    "icacls",
+    "ssh",
+    "scp",
+    "mkfs",
+    "shutdown",
+    "reboot",
+]
+max_output_bytes = 30000
+default_timeout = 120
+max_timeout_seconds = 300
+
+[tools.git_bash]
+permission = "always"
+denylist = [
+    "rm -rf",
+    "rm -fr",
+    "git reset --hard",
+    "git clean -fd",
+    "git push --force",
+    "git push -f",
+    "npm publish",
+    "pnpm publish",
+    "yarn publish",
+]
+denylist_standalone = [
+    "rm",
+    "rmdir",
+]
+sensitive_patterns = [
+    "sudo",
+    "rm",
+    "mv",
+    "chmod",
+    "chown",
+    "curl",
+    "ssh",
+    "scp",
+]
+max_output_bytes = 30000
+default_timeout = 120
+max_timeout_seconds = 300
+
+[tools.powershell]
+permission = "always"
+denylist = [
+    "Remove-Item -Recurse -Force",
+    "Format-Volume",
+    "git reset --hard",
+    "git clean -fd",
+    "git push --force",
+]
+denylist_standalone = [
+    "Remove-Item",
+    "Clear-Disk",
+]
+sensitive_patterns = [
+    "Invoke-WebRequest",
+    "Invoke-Expression",
+    "Start-Process",
+    "reg",
+    "sc",
+    "netsh",
+    "takeown",
+    "icacls",
+    "Remove-Item",
+    "Stop-Process",
+]
+max_output_bytes = 30000
+default_timeout = 120
+max_timeout_seconds = 300
+
+[tools.read_file]
+permission = "always"
+sensitive_patterns = [
+    "**/.env",
+    "**/.env.*",
+    "**/.env~",
+    "**/.envrc",
+    "**/.envrc.*",
+    "**/.envrc~",
+    "**/secrets/**",
+    "**/*.pem",
+    "**/*.key",
+    "**/.ssh/**",
+]
+
+[tools.write_file]
+permission = "always"
+sensitive_patterns = [
+    "**/.env",
+    "**/.env.*",
+    "**/.env~",
+    "**/.envrc",
+    "**/.envrc.*",
+    "**/.envrc~",
+    "**/secrets/**",
+    "**/*.pem",
+    "**/*.key",
+    "**/.ssh/**",
+]
+
+[tools.edit]
+permission = "always"
+sensitive_patterns = [
+    "**/.env",
+    "**/.env.*",
+    "**/.env~",
+    "**/.envrc",
+    "**/.envrc.*",
+    "**/.envrc~",
+    "**/secrets/**",
+    "**/*.pem",
+    "**/*.key",
+    "**/.ssh/**",
+]
+
+[tools.todo]
+permission = "always"
+
+[tools.skill]
+permission = "always"
+
+[tools.web_search]
+permission = "always"
+
+[tools.web_fetch]
+permission = "always"
+
+# --- shell en segundo plano: mismo regimen que el shell base ---
+[tools.bash_output]
+permission = "always"
+
+[tools.bash_sessions]
+permission = "always"
+
+[tools.bash_stdin]
+permission = "always"
+
+[tools.bash_log_file]
+permission = "always"
+
+[tools.git_bash_output]
+permission = "always"
+
+[tools.git_bash_sessions]
+permission = "always"
+
+[tools.git_bash_stdin]
+permission = "always"
+
+[tools.git_bash_log_file]
+permission = "always"
+
+[tools.powershell_output]
+permission = "always"
+
+[tools.powershell_sessions]
+permission = "always"
+
+[tools.powershell_stdin]
+permission = "always"
+
+[tools.powershell_log_file]
+permission = "always"
+
+[tools.browse_browser_navigate]
+permission = "always"
+
+[tools.browse_browser_navigate_back]
+permission = "always"
+
+[tools.browse_browser_snapshot]
+permission = "always"
+
+[tools.browse_browser_take_screenshot]
+permission = "always"
+
+[tools.browse_browser_click]
+permission = "always"
+
+[tools.browse_browser_type]
+permission = "always"
+
+[tools.browse_browser_fill_form]
+permission = "always"
+
+[tools.browse_browser_find]
+permission = "always"
+
+[tools.browse_browser_press_key]
+permission = "always"
+
+[tools.browse_browser_hover]
+permission = "always"
+
+[tools.browse_browser_select_option]
+permission = "always"
+
+[tools.browse_browser_wait_for]
+permission = "always"
+
+[tools.browse_browser_tabs]
+permission = "always"
+
+[tools.browse_browser_resize]
+permission = "always"
+
+[tools.browse_browser_console_messages]
+permission = "always"
+
+[tools.browse_browser_network_requests]
+permission = "always"
+
+[tools.browse_browser_network_request]
+permission = "always"
+
+[tools.browse_browser_emulate_media]
+permission = "always"
+
+[tools.browse_browser_handle_dialog]
+permission = "always"
+
+[tools.browse_browser_drag]
+permission = "always"
+
+[tools.browse_browser_drop]
+permission = "always"
+
+[tools.browse_browser_close]
+permission = "always"
+
+[tools.ompx_glob]
+permission = "always"
+
+[tools.ompx_grep]
+permission = "always"
+
+[tools.ompx_read]
+permission = "always"
+
+[tools.ompx_eval_python]
+permission = "always"
+
+[tools.ompx_lsp_query]
+permission = "always"
+
+[tools.ompx_eval_js]
+permission = "always"
+
+[tools.ompx_ast_grep]
+permission = "always"
+
+[tools.ompx_ast_replace]
+permission = "always"
+
+[tools.ompx_sessions]
+permission = "always"
+
+[[mcp_servers]]
+name = "browse"
+transport = "stdio"
+command = "cmd"
+startup_timeout_sec = 120.0
+tool_timeout_sec = 120.0
+args = [
+    "/c",
+    "npx",
+    "-y",
+    "@playwright/mcp@latest",
+]
+
+[[mcp_servers]]
+name = "ompx"
+transport = "stdio"
+command = "python"
+startup_timeout_sec = 30.0
+args = [
+    "C:/Users/Workstation 2040/.vibe/mcp/ompx/server.py",
+]

@@ -1,0 +1,15 @@
+agent_type = "subagent"
+display_name = "Scout"
+description = "Exploración de solo lectura: localiza archivos, símbolos y patrones y devuelve contexto comprimido. Úsalo cuando el repo no está mapeado."
+safety = "safe"
+enabled_tools = ["read_file", "bash"]
+instructions = """
+Explora y responde. No edites nada. Devuelve hallazgos con archivo:línea y el mínimo contexto necesario para que el agente padre actúe sin re-leer el repo.
+"""
+
+[tools.read_file]
+permission = "always"
+
+[tools.bash]
+permission = "always"
+denylist = ["rm", "mv", "git commit", "git push", "git checkout", "git reset", "git clean"]

@@ -1,0 +1,11 @@
+# Port de bashInterceptor de omp (~/.omp/agent/config.yml) a hooks de Vibe.
+# Solo las reglas que apuntan a una tool que Vibe tiene: read_file, edit, write_file.
+
+[[hooks]]
+name = "redirect-shell-reads"
+type = "pre_tool"
+match = "re:bash|git_bash|powershell|process_start"
+command = "python \"C:/Users/Workstation 2040/.vibe/hooks/intercept.py\""
+timeout = 15.0
+strict = false
+description = "Rechaza cat/head/tail, sed -i y escrituras por redirección: usa read_file/edit/write_file."
