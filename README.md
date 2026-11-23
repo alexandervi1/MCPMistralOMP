@@ -61,14 +61,17 @@ En VS Code, `/reload` o **Developer: Reload Window** para que el panel recoja la
 | Tool | Qué hace |
 |---|---|
 | `glob` | rutas por patrón, `.gitignore` exacto vía `git ls-files` |
-| `grep` | `ruta:linea: texto`, paginación, filtro por glob |
-| `read` | rangos de línea; bloquea `.env`/`secrets`/`*.pem`/`*.key`/`.ssh`; acepta URL y PDF |
+| `grep` | `ruta:linea: texto`, paginación, filtro por glob y líneas de contexto |
+| `read` | rangos de línea; bloquea `.env`/`secrets`/`*.pem`/`*.key`/`.ssh`; URL, PDF, docx/pptx/xlsx y zip (lista o extrae una entrada) |
 | `eval_python` | kernel persistente (variables e imports sobreviven) |
 | `eval_js` | kernel Node persistente (`var`/`globalThis` sobreviven, `await` soportado) |
-| `lsp_query` | definiciones, referencias, hover, diagnósticos, símbolos |
+| `lsp_query` | `definitions`, `type_definition`, `implementation`, `references`, `hover`, `diagnostics`, `symbols`, `workspace_symbols`, `rename` (preview/apply), `code_actions`, `format` |
 | `ast_grep` | búsqueda estructural (`$A`, `$$$`) |
 | `ast_replace` | reescritura estructural; `apply=true` escribe |
+| `apply_patch` | aplica un diff unificado con `git apply`; por defecto `--check` |
 | `sessions` | busca en `~/.vibe/logs/session` |
+| `sessions_get` | lee una sesión por id y devuelve sus últimos fragmentos |
+| `ompx_info` | versión, rutas de python/node/ast-grep, language servers y tools |
 
 Además `browse` (Playwright MCP): 25 tools de navegador con captura y snapshot.
 

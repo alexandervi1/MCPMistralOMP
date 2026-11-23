@@ -336,6 +336,15 @@ permission = "always"
 [tools.ompx_sessions]
 permission = "always"
 
+[tools.ompx_sessions_get]
+permission = "always"
+
+[tools.ompx_apply_patch]
+permission = "always"
+
+[tools.ompx_ompx_info]
+permission = "always"
+
 [[mcp_servers]]
 name = "browse"
 transport = "stdio"

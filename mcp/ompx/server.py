@@ -15,10 +15,12 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
 import urllib.request
+from xml.etree import ElementTree
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import lsp_client  # noqa: E402  (modulo hermano, mismo directorio)
@@ -133,6 +135,7 @@ TOOLS = [
                 "case_insensitive": {"type": "boolean", "default": False},
                 "max_matches": {"type": "integer", "default": 100},
                 "skip": {"type": "integer", "default": 0, "description": "Coincidencias a saltar (paginacion)."},
+                "context": {"type": "integer", "default": 0, "description": "Lineas de contexto antes y despues (0-10)."},
             },
             "required": ["pattern"],
         },
@@ -146,6 +149,7 @@ TOOLS = [
                 "path": {"type": "string"},
                 "offset": {"type": "integer", "default": 1, "description": "Primera linea (1-based)."},
                 "limit": {"type": "integer", "default": 150},
+                "member": {"type": "string", "description": "Solo .zip: entrada a leer. Sin member, lista el contenido."},
             },
             "required": ["path"],
         },
@@ -165,17 +169,23 @@ TOOLS = [
     },
     {
         "name": "lsp_query",
-        "description": "Consulta el language server del archivo (.py via pyright, .ts/.js via typescript-language-server): definiciones, referencias, hover, diagnosticos y simbolos del documento.",
+        "description": "Consulta el language server del archivo (.py via pyright, .ts/.js via typescript-language-server): definiciones, referencias, hover, diagnosticos, simbolos, rename, code actions, formato y simbolos del workspace.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["definitions", "references", "hover", "diagnostics", "symbols"],
+                    "enum": ["definitions", "type_definition", "implementation", "references", "hover",
+                             "diagnostics", "symbols", "workspace_symbols", "rename", "code_actions", "format"],
                 },
                 "path": {"type": "string"},
-                "line": {"type": "integer", "default": 1, "description": "Linea 1-based (definitions, references, hover)."},
-                "column": {"type": "integer", "default": 1, "description": "Columna 1-based (definitions, references, hover)."},
+                "line": {"type": "integer", "default": 1, "description": "Linea 1-based."},
+                "column": {"type": "integer", "default": 1, "description": "Columna 1-based."},
+                "new_name": {"type": "string", "description": "rename: nombre nuevo."},
+                "query": {"type": "string", "description": "workspace_symbols: texto a buscar."},
+                "apply": {"type": "boolean", "default": False, "description": "rename/format/code_actions: escribir cambios."},
+                "apply_index": {"type": "integer", "description": "code_actions: indice de la accion a aplicar."},
+                "tab_size": {"type": "integer", "default": 2},
                 "timeout": {"type": "number", "default": 20},
             },
             "required": ["action", "path"],
@@ -237,6 +247,36 @@ TOOLS = [
             },
             "required": ["query"],
         },
+    },
+    {
+        "name": "sessions_get",
+        "description": "Lee una sesion guardada por su id y devuelve los ultimos fragmentos de texto (prompts y respuestas).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "limit": {"type": "integer", "default": 20},
+            },
+            "required": ["session_id"],
+        },
+    },
+    {
+        "name": "apply_patch",
+        "description": "Aplica un diff unificado con git apply. Por defecto solo comprueba (--check); con apply=true escribe.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "diff": {"type": "string", "description": "Diff unificado completo (---/+++/@@)."},
+                "path": {"type": "string", "description": "Raiz del repo. Por defecto el cwd."},
+                "apply": {"type": "boolean", "default": False},
+            },
+            "required": ["diff"],
+        },
+    },
+    {
+        "name": "ompx_info",
+        "description": "Introspeccion: version, rutas de python/node/ast-grep, language servers disponibles y lista de tools.",
+        "inputSchema": {"type": "object", "properties": {}},
     },
 ]
 
@@ -338,7 +378,8 @@ def tool_grep(args):
     file_glob = args.get("glob")
     skip = max(0, int(args.get("skip", 0)))
     limit = max(1, int(args.get("max_matches", 100)))
-    hits, seen = [], 0
+    context = max(0, min(10, int(args.get("context", 0))))
+    hits, matches = [], 0
     for rel in (single if single else iter_files(root)):
         if file_glob and not matches(rel, file_glob):
             continue
@@ -350,25 +391,36 @@ def tool_grep(args):
                 if b"\0" in probe.read(8192):
                     continue
             with open(full, "r", encoding="utf-8", errors="replace") as fh:
-                for number, line in enumerate(fh, start=1):
-                    if not rx.search(line):
-                        continue
-                    if seen < skip:
-                        seen += 1
-                        continue
-                    hits.append(f"{rel}:{number}: {line.rstrip()[:400]}")
-                    seen += 1
-                    if len(hits) >= limit + 1:
-                        break
+                content = fh.readlines()
         except (OSError, ValueError):
             continue
-        if len(hits) > limit:
+        last_emitted = -1
+        for index, line in enumerate(content):
+            if not rx.search(line):
+                continue
+            if matches < skip:
+                matches += 1
+                continue
+            if context:
+                first = max(0, index - context)
+                last = min(len(content), index + context + 1)
+                for offset in range(first, last):
+                    if offset <= last_emitted:
+                        continue
+                    last_emitted = offset
+                    mark = ":" if offset == index else "-"
+                    hits.append(f"{rel}{mark}{offset + 1}{mark} {content[offset].rstrip()[:400]}")
+            else:
+                hits.append(f"{rel}:{index + 1}: {line.rstrip()[:400]}")
+            matches += 1
+            if matches > skip + limit:
+                break
+        if matches > skip + limit:
             break
     if not hits:
         return text_result("(sin coincidencias)")
-    page = hits[:limit]
-    tail = "" if len(hits) <= limit else f"\n[... mas; usa skip={skip + limit}]"
-    return text_result("\n".join(page) + tail)
+    tail = "" if matches <= skip + limit else f"\n[... mas; usa skip={skip + limit}]"
+    return text_result("\n".join(hits[:limit * (2 * context + 1) + 1]) + tail)
 
 
 def strip_html(text):
@@ -426,6 +478,115 @@ def read_pdf(path, offset, limit):
     return text_result(f"{len(lines)} lineas extraidas\n" + "\n".join(chunk)[:MAX_BYTES])
 
 
+def _local(tag):
+    return tag.rsplit("}", 1)[-1]
+
+
+def _docx_lines(xml):
+    root = ElementTree.fromstring(xml)
+    out = []
+    for para in root.iter():
+        if _local(para.tag) != "p":
+            continue
+        text = "".join(node.text or "" for node in para.iter() if _local(node.tag) == "t")
+        out.append(text)
+    return out
+
+
+def _pptx_lines(xml):
+    root = ElementTree.fromstring(xml)
+    out = []
+    for para in root.iter():
+        if _local(para.tag) != "p":
+            continue
+        text = "".join(node.text or "" for node in para.iter() if _local(node.tag) == "t")
+        if text.strip():
+            out.append(text)
+    return out
+
+
+def _xlsx_lines(xml, shared):
+    root = ElementTree.fromstring(xml)
+    out = []
+    for row in root.iter():
+        if _local(row.tag) != "row":
+            continue
+        cells = []
+        for cell in row:
+            if _local(cell.tag) != "c":
+                continue
+            ref = cell.get("r", "")
+            ctype = cell.get("t")
+            value = ""
+            for node in cell.iter():
+                tag = _local(node.tag)
+                if tag == "v" and node.text is not None:
+                    value = node.text
+                    if ctype == "s":
+                        try:
+                            value = shared[int(value)]
+                        except (ValueError, IndexError):
+                            pass
+                elif tag == "t" and ctype == "inlineStr" and node.text:
+                    value += node.text
+            if value:
+                cells.append(f"{ref}={value}")
+        if cells:
+            out.append(" | ".join(cells))
+    return out
+
+
+def read_office(path, offset, limit):
+    import zipfile
+
+    ext = path.lower().rsplit(".", 1)[-1]
+    try:
+        with zipfile.ZipFile(path) as archive:
+            names = set(archive.namelist())
+            if ext == "docx":
+                lines = _docx_lines(archive.read("word/document.xml"))
+            elif ext == "pptx":
+                slides = sorted(name for name in names if re.match(r"ppt/slides/slide\d+\.xml$", name))
+                lines = []
+                for name in slides:
+                    lines.append(f"--- {name.rsplit('/', 1)[-1]} ---")
+                    lines.extend(_pptx_lines(archive.read(name)))
+            else:
+                shared = []
+                if "xl/sharedStrings.xml" in names:
+                    root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+                    for item in root.iter():
+                        if _local(item.tag) == "si":
+                            shared.append("".join(node.text or "" for node in item.iter() if _local(node.tag) == "t"))
+                sheets = sorted(name for name in names if re.match(r"xl/worksheets/sheet\d+\.xml$", name))
+                lines = []
+                for name in sheets:
+                    lines.append(f"--- {name.rsplit('/', 1)[-1]} ---")
+                    lines.extend(_xlsx_lines(archive.read(name), shared))
+    except Exception as exc:
+        return text_result(f"Office ilegible: {exc}", True)
+    chunk = lines[offset - 1: offset - 1 + limit]
+    if not chunk:
+        return text_result(f"(vacio desde la linea {offset}; {len(lines)} lineas)")
+    return text_result(f"{len(lines)} lineas extraidas\n" + "\n".join(chunk)[:MAX_BYTES])
+
+
+def read_zip(path, member, offset, limit):
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(path) as archive:
+            if not member:
+                entries = [f"{item.filename}\t{item.file_size}" for item in archive.infolist()]
+                return text_result(f"{len(entries)} entrada(s)\n" + "\n".join(entries[:200]))
+            data = archive.read(member)
+    except Exception as exc:
+        return text_result(f"ZIP ilegible: {exc}", True)
+    lines = data.decode("utf-8", "replace").splitlines()
+    chunk = lines[offset - 1: offset - 1 + limit]
+    return text_result(f"{member} ({len(lines)} lineas)\n" + "\n".join(chunk)[:MAX_BYTES])
+
+
 def tool_read(args):
     raw = str(args.get("path") or "").strip()
     if raw.lower().startswith(("http://", "https://")):
@@ -435,6 +596,11 @@ def tool_read(args):
     limit = max(1, int(args.get("limit", 150)))
     if path.lower().endswith(".pdf"):
         return read_pdf(path, offset, limit)
+    lowered = path.lower()
+    if lowered.endswith((".docx", ".pptx", ".xlsx")):
+        return read_office(path, offset, limit)
+    if lowered.endswith(".zip"):
+        return read_zip(path, args.get("member"), offset, limit)
     if any(rx.search(path) for rx in SENSITIVE):
         return text_result("Archivo sensible: lo bloqueo en el servidor. Pide autorizacion explicita al usuario.", True)
     if not os.path.isfile(path):
@@ -565,6 +731,50 @@ def flatten_symbols(items, depth=0):
     return out
 
 
+def collect_workspace_edits(edit):
+    """Normaliza un WorkspaceEdit a {uri: [TextEdit]}."""
+    out = {}
+    if not isinstance(edit, dict):
+        return out
+    changes = edit.get("changes")
+    if isinstance(changes, dict):
+        for uri, edits in changes.items():
+            out.setdefault(uri, []).extend(edits or [])
+    for change in edit.get("documentChanges") or []:
+        uri = (change.get("textDocument") or {}).get("uri")
+        if uri and change.get("edits"):
+            out.setdefault(uri, []).extend(change["edits"])
+    return out
+
+
+def offset_of(text, pos):
+    lines = text.splitlines(keepends=True)
+    line = max(0, int(pos.get("line", 0)))
+    if line >= len(lines):
+        return len(text)
+    base = sum(len(item) for item in lines[:line])
+    body = lines[line].rstrip("\r\n")
+    return base + min(max(0, int(pos.get("character", 0))), len(body))
+
+
+def apply_text_edits(path, edits):
+    with open(path, "r", encoding="utf-8", newline="") as fh:
+        text = fh.read()
+    ordered = sorted(edits, key=lambda e: (
+        (e.get("range") or {}).get("start", {}).get("line", 0),
+        (e.get("range") or {}).get("start", {}).get("character", 0),
+    ), reverse=True)
+    for edit in ordered:
+        rng = edit.get("range") or {}
+        start = offset_of(text, rng.get("start") or {})
+        end = offset_of(text, rng.get("end") or {})
+        if end < start:
+            start, end = end, start
+        text = text[:start] + (edit.get("newText") or "") + text[end:]
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(text)
+
+
 def tool_lsp(args):
     action = args.get("action")
     path = os.path.abspath(args.get("path") or "")
@@ -612,15 +822,20 @@ def tool_lsp(args):
                 body = str(contents)
             return text_result(body[:4000])
 
-        if action in ("definitions", "references"):
-            if action == "definitions":
-                method, params = "textDocument/definition", {"textDocument": {"uri": uri}, "position": position}
-            else:
+        if action in ("definitions", "type_definition", "implementation", "references"):
+            if action == "references":
                 method, params = "textDocument/references", {
                     "textDocument": {"uri": uri},
                     "position": position,
                     "context": {"includeDeclaration": True},
                 }
+            else:
+                method = {
+                    "definitions": "textDocument/definition",
+                    "type_definition": "textDocument/typeDefinition",
+                    "implementation": "textDocument/implementation",
+                }[action]
+                params = {"textDocument": {"uri": uri}, "position": position}
             result = client.request(method, params, timeout)
             if not result:
                 return text_result("(sin resultados)")
@@ -633,6 +848,91 @@ def tool_lsp(args):
             result = client.request("textDocument/documentSymbol", {"textDocument": {"uri": uri}}, timeout)
             lines = flatten_symbols(result)
             return text_result("\n".join(lines) if lines else "(sin simbolos)")
+
+        if action == "workspace_symbols":
+            query = args.get("query") or ""
+            result = client.request("workspace/symbol", {"query": query}, timeout) or []
+            if not result:
+                return text_result("(sin simbolos)")
+            lines = []
+            for item in result[:60]:
+                kind = SYMBOL_KIND.get(item.get("kind"), "?")
+                lines.append(f"{kind} {item.get('name', '?')}  {fmt_location(item.get('location') or {})}")
+            return text_result(f"{len(result)} resultado(s)\n" + "\n".join(lines))
+
+        if action == "rename":
+            new_name = args.get("new_name")
+            if not new_name:
+                return text_result("rename requiere new_name.", True)
+            result = client.request("textDocument/rename",
+                                    {"textDocument": {"uri": uri}, "position": position, "newName": new_name}, timeout)
+            edits_by_file = collect_workspace_edits(result)
+            if not edits_by_file:
+                return text_result("(sin cambios)")
+            lines, total = [], 0
+            for file_uri, edits in edits_by_file.items():
+                target = lsp_client.uri_to_path(file_uri)
+                for edit in edits:
+                    start = (edit.get("range") or {}).get("start") or {}
+                    lines.append(f"{short_path(target)}:{start.get('line', 0) + 1}:{start.get('character', 0) + 1} -> {str(edit.get('newText', ''))[:60]}")
+                total += len(edits)
+            if args.get("apply"):
+                applied, failures = 0, []
+                for file_uri, edits in edits_by_file.items():
+                    try:
+                        apply_text_edits(lsp_client.uri_to_path(file_uri), edits)
+                        applied += 1
+                    except OSError as exc:
+                        failures.append(f"{short_path(lsp_client.uri_to_path(file_uri))}: {exc}")
+                status = f"aplicado en {applied} archivo(s)"
+                if failures:
+                    status += " | fallos: " + "; ".join(failures)
+            else:
+                status = "preview (apply=true para escribir)"
+            return text_result(f"{total} edit(s) en {len(edits_by_file)} archivo(s) - {status}\n" + "\n".join(lines[:80]))
+
+        if action == "code_actions":
+            result = client.request("textDocument/codeAction", {
+                "textDocument": {"uri": uri},
+                "range": {"start": position, "end": position},
+                "context": {"diagnostics": []},
+            }, timeout) or []
+            if not result:
+                return text_result("(sin acciones)")
+            listing = [f"{index}. {item.get('title', '?')} [{item.get('kind', '')}]" for index, item in enumerate(result)]
+            chosen = args.get("apply_index")
+            if chosen is None:
+                return text_result(f"{len(result)} accion(es); usa apply_index para aplicar una\n" + "\n".join(listing[:40]))
+            index = int(chosen)
+            if not 0 <= index < len(result):
+                return text_result(f"apply_index fuera de rango (0..{len(result) - 1})", True)
+            edits_by_file = collect_workspace_edits(result[index].get("edit"))
+            if not edits_by_file:
+                return text_result("Esa accion no trae edit aplicable (puede ser un comando del servidor).", True)
+            applied = 0
+            for file_uri, edits in edits_by_file.items():
+                apply_text_edits(lsp_client.uri_to_path(file_uri), edits)
+                applied += 1
+            return text_result(f"aplicada: {result[index].get('title', '?')} en {applied} archivo(s)")
+
+        if action == "format":
+            edits = client.request("textDocument/formatting", {
+                "textDocument": {"uri": uri},
+                "options": {"tabSize": int(args.get("tab_size", 2)), "insertSpaces": True},
+            }, timeout) or []
+            if not edits:
+                return text_result("(sin cambios de formato)")
+            if args.get("apply"):
+                apply_text_edits(path, edits)
+                return text_result(f"{len(edits)} edit(s) de formato aplicados")
+            lines = []
+            for edit in edits:
+                start = (edit.get("range") or {}).get("start") or {}
+                end = (edit.get("range") or {}).get("end") or {}
+                lines.append(f"{start.get('line', 0) + 1}:{start.get('character', 0) + 1}"
+                             f"-{end.get('line', 0) + 1}:{end.get('character', 0) + 1} -> "
+                             f"{str(edit.get('newText', ''))[:80]!r}")
+            return text_result(f"{len(edits)} edit(s) - preview (apply=true para escribir)\n" + "\n".join(lines[:60]))
 
         return text_result(f"Accion desconocida: {action}", True)
 
@@ -725,6 +1025,97 @@ def tool_sessions(args):
     return text_result("\n".join(hits))
 
 
+def tool_apply_patch(args):
+    diff = args.get("diff") or ""
+    if not diff.strip():
+        return text_result("Falta diff.", True)
+    root = base_dir(args.get("path"))
+    handle, tmp = tempfile.mkstemp(prefix="ompx-", suffix=".patch")
+    os.close(handle)
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(diff if diff.endswith("\n") else diff + "\n")
+        check = subprocess.run(["git", "apply", "--check", tmp], cwd=root, stdin=subprocess.DEVNULL,
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if check.returncode != 0:
+            return text_result("El parche no aplica:\n" + ((check.stderr or check.stdout) or "")[:1500], True)
+        if not args.get("apply"):
+            return text_result("El parche aplica limpio (preview). Usa apply=true para escribir.")
+        run = subprocess.run(["git", "apply", tmp], cwd=root, stdin=subprocess.DEVNULL,
+                             capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if run.returncode != 0:
+            return text_result("Error aplicando:\n" + (run.stderr or run.stdout)[:1500], True)
+        return text_result("Parche aplicado.")
+    except (OSError, subprocess.SubprocessError) as exc:
+        return text_result(f"git apply fallo: {exc}", True)
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
+def _iter_texts(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _iter_texts(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _iter_texts(item)
+
+
+def tool_sessions_get(args):
+    session = (args.get("session_id") or "").strip()
+    if not session:
+        return text_result("Falta session_id.", True)
+    limit = max(1, int(args.get("limit", 20)))
+    root = os.path.join(os.path.expanduser("~"), ".vibe", "logs", "session")
+    files = glob.glob(os.path.join(root, "**", session, "**", "*.jsonl"), recursive=True)
+    if not files:
+        return text_result(f"Sesion no encontrada: {session}", True)
+    fragments = []
+    for path in files:
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    for text in _iter_texts(obj):
+                        clean = text.strip()
+                        if len(clean) < 40 or " " not in clean:
+                            continue
+                        if not re.search(r"[A-Za-z]{3}", clean):
+                            continue
+                        if clean not in fragments[-3:]:
+                            fragments.append(clean)
+        except OSError:
+            continue
+    if not fragments:
+        return text_result("(sin texto util en esa sesion)")
+    tail = fragments[-limit:]
+    return text_result(f"{len(fragments)} fragmento(s); ultimos {len(tail)}\n" + "\n---\n".join(item[:600] for item in tail))
+
+
+def tool_info(args):
+    py_label, _, _ = lsp_client.server_for("python")
+    ts_label, _, _ = lsp_client.server_for("typescript")
+    lines = [
+        f"ompx {SERVER['version']}",
+        f"python {sys.version.split()[0]} -> {sys.executable}",
+        f"node -> {NODE}",
+        f"ast-grep -> {ast_grep_bin() or 'no instalado'}",
+        f"lsp python -> {py_label or 'no disponible'}",
+        f"lsp ts/js -> {ts_label or 'no disponible'}",
+        f"cwd -> {os.getcwd()}",
+        f"tools -> {', '.join(sorted(HANDLERS))}",
+    ]
+    return text_result("\n".join(lines))
+
+
 HANDLERS = {
     "glob": tool_glob,
     "grep": tool_grep,
@@ -735,6 +1126,9 @@ HANDLERS = {
     "ast_grep": tool_ast_grep,
     "ast_replace": tool_ast_replace,
     "sessions": tool_sessions,
+    "sessions_get": tool_sessions_get,
+    "apply_patch": tool_apply_patch,
+    "ompx_info": tool_info,
 }
 
 
