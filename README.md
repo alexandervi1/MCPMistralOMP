@@ -118,3 +118,7 @@ New-Item "$env:USERPROFILE\.vibe\mcp\ompx\trace" -ItemType File
 ## Seguridad
 
 `default_agent = "accept-edits"` con `bash` en `permission = "always"`: el agente ejecuta shell sin preguntar. La denylist cubre `rm -rf`, `git reset --hard`, `git push --force` y publishes; `sensitive_patterns` frena `rm`, `mv`, `chmod`, `curl`, `ssh`, `reg`… En repos ajenos: `vibe --agent ask` o `vibe --agent plan`.
+
+## Licencia
+
+MIT. Ver [LICENSE](LICENSE).
