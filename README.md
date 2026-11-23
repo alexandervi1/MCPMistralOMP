@@ -16,7 +16,7 @@ Probado en Windows 11 con Vibe `3.1.4`, Python 3.14, Node 24, VS Code 1.147 y la
 │   ├── hooks/intercept.py   bloquea cat/head/tail, sed -i, echo >
 │   └── agents/              plan · scout · reviewer · ui-designer
 ├── mcp/ompx/                servidor MCP propio
-│   ├── server.py            9 tools, JSON-RPC a mano, sin dependencias Python
+│   ├── server.py            12 tools, JSON-RPC a mano, sin dependencias Python
 │   ├── lsp_client.py        cliente LSP (pyright / typescript-language-server)
 │   └── package.json         deps fijadas: pyright, TS 5, tsserver, ast-grep
 └── scripts/
