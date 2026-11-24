@@ -35,15 +35,28 @@ Probado en Windows 11 con Vibe `3.1.4`, Python 3.14, Node 24, VS Code 1.147 y la
 
 ## Instalación
 
+**Windows**
+
 ```powershell
 git clone https://github.com/alexandervi1/MCPMistralOMP.git $env:USERPROFILE\.vibe-omp
 powershell -ExecutionPolicy Bypass -File $env:USERPROFILE\.vibe-omp\install.ps1
+```
+
+**macOS / Linux**
+
+```bash
+git clone https://github.com/alexandervi1/MCPMistralOMP.git ~/.vibe-omp
+bash ~/.vibe-omp/install.sh
 ```
 
 Otros workspaces (el trust es por prefijo de ruta):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File install.ps1 -TrustRoots "C:\dev","D:\work"
+```
+
+```bash
+bash install.sh ~/dev /mnt/work
 ```
 
 En VS Code, `/reload` o **Developer: Reload Window** para que el panel recoja la config.
@@ -117,6 +130,7 @@ New-Item "$env:USERPROFILE\.vibe\mcp\ompx\trace" -ItemType File
 - El modelo no acepta `thinking=medium`: cada preset declara `thinking_levels` válidos.
 - Sin `certifi`, las lecturas por URL caen a TLS sin verificar (el output lo avisa).
 - Sin `pypdf`, `read` no extrae PDFs (devuelve el comando para instalarlo).
+- Probado en Windows 11. Los scripts POSIX (`install.sh`, `scripts/port_config.py`) y las rutas de `lsp_client` son multiplataforma, pero no se ejecutaron en macOS/Linux: el primer `bash install.sh` allí es la prueba pendiente.
 
 ## Seguridad
 

@@ -991,12 +991,16 @@ def tool_ast_replace(args):
     return run_ast(args, rewrite=args.get("rewrite"), apply=bool(args.get("apply")))
 
 
+def vibe_home():
+    return os.environ.get("VIBE_HOME") or os.path.join(os.path.expanduser("~"), ".vibe")
+
+
 def tool_sessions(args):
     query = (args.get("query") or "").strip()
     if not query:
         return text_result("Falta query.", True)
     limit = max(1, int(args.get("limit", 20)))
-    root = os.path.join(os.path.expanduser("~"), ".vibe", "logs", "session")
+    root = os.path.join(vibe_home(), "logs", "session")
     if not os.path.isdir(root):
         return text_result("No hay sesiones guardadas.", True)
     files = glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True)
@@ -1073,7 +1077,7 @@ def tool_sessions_get(args):
     if not session:
         return text_result("Falta session_id.", True)
     limit = max(1, int(args.get("limit", 20)))
-    root = os.path.join(os.path.expanduser("~"), ".vibe", "logs", "session")
+    root = os.path.join(vibe_home(), "logs", "session")
     files = glob.glob(os.path.join(root, "**", session, "**", "*.jsonl"), recursive=True)
     if not files:
         return text_result(f"Sesion no encontrada: {session}", True)

@@ -11,6 +11,9 @@ $ErrorActionPreference = "Stop"
 $src = $PSScriptRoot
 $vibe = Join-Path $env:USERPROFILE ".vibe"
 
+# Python del sistema: 'python' o el lanzador 'py'
+$py = if (Get-Command python -ErrorAction SilentlyContinue) { "python" } elseif (Get-Command py -ErrorAction SilentlyContinue) { "py" } else { throw "Python no encontrado en PATH" }
+
 Write-Host "[1/5] Directorios"
 foreach ($dir in @($vibe, "$vibe\agents", "$vibe\hooks", "$vibe\mcp\ompx")) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -28,22 +31,13 @@ Copy-Item "$src\vibe\agents\*.toml" "$vibe\agents\" -Force
 Copy-Item "$src\mcp\ompx\*.py" "$vibe\mcp\ompx\" -Force
 Copy-Item "$src\mcp\ompx\package.json" "$vibe\mcp\ompx\" -Force
 
-# Las rutas del usuario van incrustadas en config.toml (server MCP) y hooks.toml.
-# Reescribirlas por la ruta real de esta maquina.
-$fwd = ($vibe -replace '\\', '/')
-foreach ($file in @("$vibe\config.toml", "$vibe\hooks.toml")) {
-    $text = [System.IO.File]::ReadAllText($file)
-    $updated = $text -replace 'C:/Users/Workstation 2040/\.vibe/', "$fwd/"
-    if ($updated -ne $text) {
-        [System.IO.File]::WriteAllText($file, $updated, (New-Object System.Text.UTF8Encoding($false)))
-        Write-Host "  ruta reescrita en $(Split-Path $file -Leaf)"
-    }
-}
+# Rutas y comandos dependen de la plataforma: un unico conversor para ambos instaladores.
+& $py "$src\scripts\port_config.py" --platform windows --vibe-home $vibe --python python
 
 Write-Host "[3/5] Trust de workspaces"
 foreach ($root in $TrustRoots) {
     if (Test-Path $root) {
-        & python "$src\scripts\merge_trust.py" $root
+        & $py "$src\scripts\merge_trust.py" $root
     } else {
         Write-Host "  (omitido, no existe): $root"
     }

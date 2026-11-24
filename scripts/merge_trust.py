@@ -7,7 +7,8 @@ import os
 import re
 import sys
 
-TARGET = os.path.join(os.path.expanduser("~"), ".vibe", "trusted_folders.toml")
+VIBE_HOME = os.environ.get("VIBE_HOME") or os.path.join(os.path.expanduser("~"), ".vibe")
+TARGET = os.path.join(VIBE_HOME, "trusted_folders.toml")
 
 
 def load():
