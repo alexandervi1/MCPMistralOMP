@@ -34,6 +34,9 @@ Copy-Item "$src\mcp\ompx\package.json" "$vibe\mcp\ompx\" -Force
 # Rutas y comandos dependen de la plataforma: un unico conversor para ambos instaladores.
 & $py "$src\scripts\port_config.py" --platform windows --vibe-home $vibe --python $py
 
+# Vibe cachea el catalogo de tools por servidor: invalidarlo tras cambiar la config.
+Get-ChildItem "$vibe\logs\mcp-descriptors\unified\*.json" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+
 Write-Host "[3/5] Trust de workspaces"
 foreach ($root in $TrustRoots) {
     if (Test-Path $root) {

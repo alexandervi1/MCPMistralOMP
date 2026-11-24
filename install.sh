@@ -31,6 +31,9 @@ cp "$SRC/mcp/ompx/package.json" "$VIBE/mcp/ompx/package.json"
 
 "$PY" "$SRC/scripts/port_config.py" --platform posix --vibe-home "$VIBE" --python "$PY"
 
+# Vibe cachea el catalogo de tools por servidor: invalidarlo tras cambiar la config.
+rm -f "$VIBE/logs/mcp-descriptors/unified/"*.json 2>/dev/null || true
+
 echo "[3/5] Trust de workspaces"
 if [ "$#" -gt 0 ]; then
   ROOTS=("$@")
