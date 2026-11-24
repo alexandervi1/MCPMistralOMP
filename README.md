@@ -17,8 +17,8 @@ Probado en Windows 11 con Vibe `3.1.4`, Python 3.14, Node 24, VS Code 1.147 y la
 │   └── agents/              plan · scout · reviewer · ui-designer
 ├── mcp/ompx/                servidor MCP propio
 │   ├── server.py            12 tools, JSON-RPC a mano, sin dependencias Python
-│   ├── lsp_client.py        cliente LSP (pyright / typescript-language-server)
-│   └── package.json         deps fijadas: pyright, TS 5, tsserver, ast-grep
+│   ├── lsp_client.py        cliente LSP (pyright, intelephense, typescript-language-server)
+│   └── package.json         deps fijadas: pyright, intelephense, TS 5, tsserver, ast-grep
 └── scripts/
     └── merge_trust.py       añade rutas a trusted_folders.toml sin duplicar
 ```
@@ -65,7 +65,7 @@ En VS Code, `/reload` o **Developer: Reload Window** para que el panel recoja la
 | `read` | rangos de línea; bloquea `.env`/`secrets`/`*.pem`/`*.key`/`.ssh`; URL, PDF, docx/pptx/xlsx y zip (lista o extrae una entrada) |
 | `eval_python` | kernel persistente (variables e imports sobreviven) |
 | `eval_js` | kernel Node persistente (`var`/`globalThis` sobreviven, `await` soportado) |
-| `lsp_query` | `definitions`, `type_definition`, `implementation`, `references`, `hover`, `diagnostics`, `symbols`, `workspace_symbols`, `rename` (preview/apply), `code_actions`, `format` |
+| `lsp_query` | `definitions`, `type_definition`, `implementation`, `references`, `hover`, `diagnostics`, `symbols`, `workspace_symbols`, `rename` (preview/apply), `code_actions`, `format` — pyright (Python), intelephense (PHP), typescript-language-server (TS/JS) |
 | `ast_grep` | búsqueda estructural (`$A`, `$$$`) |
 | `ast_replace` | reescritura estructural; `apply=true` escribe |
 | `apply_patch` | aplica un diff unificado con `git apply`; por defecto `--check` |

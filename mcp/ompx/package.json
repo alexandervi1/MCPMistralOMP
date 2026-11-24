@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@ast-grep/cli": "^0.51.3",
+    "intelephense": "^1.18.5",
     "pyright": "^1.1.414",
     "typescript": "^5.9.3",
     "typescript-language-server": "^5.3.0"

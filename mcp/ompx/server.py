@@ -169,7 +169,7 @@ TOOLS = [
     },
     {
         "name": "lsp_query",
-        "description": "Consulta el language server del archivo (.py via pyright, .ts/.js via typescript-language-server): definiciones, referencias, hover, diagnosticos, simbolos, rename, code actions, formato y simbolos del workspace.",
+        "description": "Consulta el language server del archivo (.py via pyright, .ts/.js via typescript-language-server, .php via intelephense): definiciones, referencias, hover, diagnosticos, simbolos, rename, code actions, formato y simbolos del workspace.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -379,7 +379,7 @@ def tool_grep(args):
     skip = max(0, int(args.get("skip", 0)))
     limit = max(1, int(args.get("max_matches", 100)))
     context = max(0, min(10, int(args.get("context", 0))))
-    hits, matches = [], 0
+    hits, found, accepted, more = [], 0, 0, False
     for rel in (single if single else iter_files(root)):
         if file_glob and not matches(rel, file_glob):
             continue
@@ -398,9 +398,12 @@ def tool_grep(args):
         for index, line in enumerate(content):
             if not rx.search(line):
                 continue
-            if matches < skip:
-                matches += 1
+            if found < skip:
+                found += 1
                 continue
+            if accepted >= limit:
+                more = True
+                break
             if context:
                 first = max(0, index - context)
                 last = min(len(content), index + context + 1)
@@ -412,15 +415,14 @@ def tool_grep(args):
                     hits.append(f"{rel}{mark}{offset + 1}{mark} {content[offset].rstrip()[:400]}")
             else:
                 hits.append(f"{rel}:{index + 1}: {line.rstrip()[:400]}")
-            matches += 1
-            if matches > skip + limit:
-                break
-        if matches > skip + limit:
+            accepted += 1
+            found += 1
+        if more:
             break
     if not hits:
         return text_result("(sin coincidencias)")
-    tail = "" if matches <= skip + limit else f"\n[... mas; usa skip={skip + limit}]"
-    return text_result("\n".join(hits[:limit * (2 * context + 1) + 1]) + tail)
+    tail = f"\n[... mas; usa skip={skip + limit}]" if more else ""
+    return text_result("\n".join(hits) + tail)
 
 
 def strip_html(text):
@@ -783,7 +785,7 @@ def tool_lsp(args):
     language = lsp_client.LANGUAGE_BY_EXT.get(os.path.splitext(path)[1].lower())
     if not language:
         ext = os.path.splitext(path)[1] or "(sin extension)"
-        return text_result(f"Sin language server para {ext}. Soportado: .py .ts .tsx .js .jsx .rs .go", True)
+        return text_result(f"Sin language server para {ext}. Soportado: .py .php .ts .tsx .js .jsx", True)
 
     timeout = float(args.get("timeout", 20))
     position = {
@@ -1110,6 +1112,7 @@ def tool_info(args):
         f"ast-grep -> {ast_grep_bin() or 'no instalado'}",
         f"lsp python -> {py_label or 'no disponible'}",
         f"lsp ts/js -> {ts_label or 'no disponible'}",
+        f"lsp php -> {lsp_client.server_for('php')[0] or 'no disponible'}",
         f"cwd -> {os.getcwd()}",
         f"tools -> {', '.join(sorted(HANDLERS))}",
     ]

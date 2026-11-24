@@ -34,6 +34,7 @@ def trace(message):
 
 LANGUAGE_BY_EXT = {
     ".py": "python", ".pyi": "python",
+    ".php": "php",
     ".ts": "typescript", ".mts": "typescript", ".cts": "typescript",
     ".tsx": "typescriptreact",
     ".js": "javascript", ".mjs": "javascript", ".cjs": "javascript",
@@ -45,6 +46,7 @@ LANGUAGE_BY_EXT = {
 
 ROOT_MARKERS = {
     "python": ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", ".git"),
+    "php": ("composer.json", "artisan", ".git"),
     "typescript": ("tsconfig.json", "package.json", ".git"),
     "javascript": ("package.json", "tsconfig.json", ".git"),
     "rust": ("Cargo.toml", ".git"),
@@ -90,6 +92,15 @@ def server_for(language):
         if exe:
             return "pylsp", [exe], None
         return None, None, None
+    if language == "php":
+        for base in (local, root):
+            if not base:
+                continue
+            js = os.path.join(base, "intelephense", "lib", "intelephense.js")
+            if os.path.isfile(js):
+                return "intelephense", [node_bin(), js, "--stdio"], None
+        exe = shutil.which("intelephense")
+        return ("intelephense", [exe, "--stdio"], None) if exe else (None, None, None)
     if language in ("typescript", "javascript"):
         for base in (local, root):
             if not base:
@@ -361,29 +372,45 @@ class Client:
     def _wait_diagnostics(self, uri, timeout):
         key = self._key(uri)
         if "diagnosticProvider" in self.capabilities:
-            result = self.request("textDocument/diagnostic",
-                                  {"textDocument": {"uri": uri}}, timeout) or {}
-            if result.get("kind") == "full":
-                items = result.get("items", [])
-                trace(f"diag(pull) {os.path.basename(key)} items={len(items)}")
-                return items
-            return self.diagnostics.get(key, [])
-        deadline = time.time() + min(timeout, 5)
+            items = []
+            for attempt in range(2):
+                result = self.request("textDocument/diagnostic",
+                                      {"textDocument": {"uri": uri}}, timeout) or {}
+                if result.get("kind") == "full":
+                    items = result.get("items", [])
+                else:
+                    items = self.diagnostics.get(key, [])
+                if items:
+                    trace(f"diag(pull) {os.path.basename(key)} items={len(items)} intento={attempt + 1}")
+                    return items
+                if attempt == 0:
+                    time.sleep(0.6)
+            return items
+        deadline = time.time() + min(timeout, 20)
+        grace = None
         while time.time() < deadline:
             msg = self._next(min(0.5, max(0.05, deadline - time.time())))
             if msg is None:
                 died = self._died()
                 if died:
                     raise RuntimeError(died)
+                if grace and time.time() > grace and not self.diagnostics.get(key):
+                    break
                 continue
             if self._answer_server_request(msg):
                 continue
             if msg.get("method") == "textDocument/publishDiagnostics":
                 doc = (msg.get("params") or {}).get("uri")
+                current = (msg.get("params") or {}).get("diagnostics", [])
                 if doc:
-                    self.diagnostics[self._key(doc)] = (msg.get("params") or {}).get("diagnostics", [])
+                    self.diagnostics[self._key(doc)] = current
                 if doc and self._key(doc) == key:
-                    break
+                    if current:
+                        break
+                    if grace is None:
+                        grace = time.time() + 2.5
+            if grace and time.time() > grace and not self.diagnostics.get(key):
+                break
         items = self.diagnostics.get(key, [])
         trace(f"diag {os.path.basename(key)} items={len(items)}")
         return items

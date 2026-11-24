@@ -4,7 +4,7 @@ Equivalen a omp. Un AGENTS.md de proyecto más cercano gana sobre esto.
 
 ## Herramientas
 - Nombres reales: `read_file`, `write_file`, `edit`, `bash`/`git_bash`/`powershell`, `todo`, `task`, `skill`, `web_search`, `web_fetch`.
-- MCP `ompx` añade `glob`, `grep`, `read` (rangos de línea, bloquea `.env`/`*.pem`/`*.key`/`.ssh`), `eval_python` (kernel persistente: variables e imports sobreviven entre llamadas) y `lsp_query` (pyright para Python, typescript-language-server para TS/JS; actions: definitions, references, hover, diagnostics, symbols; `line`/`column` 1-based). Para buscar, navegar código o calcular con estado, usa `ompx` antes que el shell.
+- MCP `ompx` añade `glob`, `grep`, `read` (rangos de línea, bloquea `.env`/`*.pem`/`*.key`/`.ssh`), `eval_python` (kernel persistente: variables e imports sobreviven entre llamadas) y `lsp_query` (pyright para Python, intelephense para PHP, typescript-language-server para TS/JS; actions: definitions, references, hover, diagnostics, symbols; `line`/`column` 1-based). Para buscar, navegar código o calcular con estado, usa `ompx` antes que el shell.
 - MCP `browse` da el navegador (Playwright): navegar, snapshot, captura, click, formularios.
 - No hay `ast_edit`, `canvas`, `out://`, `xd://` ni kernel JS. Si una instrucción los pide, uso lo más cercano y digo qué falta.
 - Skills del usuario en `~/.agents/skills`. Si una skill dice "read skill://X", la cargo con la herramienta `skill`; no intento leer `skill://`.
