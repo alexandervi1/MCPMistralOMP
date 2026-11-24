@@ -32,7 +32,7 @@ Copy-Item "$src\mcp\ompx\*.py" "$vibe\mcp\ompx\" -Force
 Copy-Item "$src\mcp\ompx\package.json" "$vibe\mcp\ompx\" -Force
 
 # Rutas y comandos dependen de la plataforma: un unico conversor para ambos instaladores.
-& $py "$src\scripts\port_config.py" --platform windows --vibe-home $vibe --python python
+& $py "$src\scripts\port_config.py" --platform windows --vibe-home $vibe --python $py
 
 Write-Host "[3/5] Trust de workspaces"
 foreach ($root in $TrustRoots) {

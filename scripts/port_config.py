@@ -19,7 +19,7 @@ def fix_paths(text, vibe_home):
     return text
 
 
-def fix_browse(text, platform):
+def fix_browse(text, platform, python):
     blocks = re.split(r"(?m)^(?=\[)", text)
     out = []
     for block in blocks:
@@ -35,8 +35,7 @@ def fix_browse(text, platform):
                                'args = [\n    "/c",\n    "npx",\n    "-y",\n    "@playwright/mcp@latest",\n]',
                                block, count=1)
         if block.startswith("[[mcp_servers]]") and 'name = "ompx"' in block:
-            wanted = "python3" if platform == "posix" else "python"
-            block = re.sub(r'(?m)^command = "[^"]*"', f'command = "{wanted}"', block, count=1)
+            block = re.sub(r'(?m)^command = "[^"]*"', f'command = "{python}"', block, count=1)
         out.append(block)
     return "".join(out)
 
@@ -58,9 +57,9 @@ def main():
             text = fh.read()
         text = fix_paths(text, args.vibe_home)
         if path == config:
-            text = fix_browse(text, args.platform)
+            text = fix_browse(text, args.platform, args.python)
         else:
-            python = "python3" if args.platform == "posix" else "python"
+            python = args.python
             text = re.sub(r'(?m)^command = "python3? ', f'command = "{python} ', text)
             text = text.replace('command = "python "', f'command = "{python} "')
             text = text.replace('command = "python3 "', f'command = "{python} "')
